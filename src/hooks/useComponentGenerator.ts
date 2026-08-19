@@ -1,8 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { GeneratedComponent, Provider } from '../types';
+import { loadFromStorage, saveToStorage } from '../utils/storage';
+
+const COMPONENTS_STORAGE_KEY = 'rcg-components';
+const PROMPT_HISTORY_STORAGE_KEY = 'rcg-prompt-history';
+const MAX_PROMPT_HISTORY = 20;
 
 interface UseComponentGeneratorReturn {
   components: GeneratedComponent[];
+  promptHistory: string[];
   isLoading: boolean;
   error: string | null;
   generate: (prompt: string, apiKey: string | undefined, provider: Provider) => Promise<void>;
@@ -10,14 +16,28 @@ interface UseComponentGeneratorReturn {
   clearAll: () => void;
 }
 
+function loadComponents(): GeneratedComponent[] {
+  const stored = loadFromStorage<GeneratedComponent[]>(COMPONENTS_STORAGE_KEY, []);
+  return stored
+    .filter((component) => component && typeof component.id === 'string' && typeof component.prompt === 'string' && typeof component.code === 'string' && typeof component.createdAt === 'string')
+    .map((component) => ({ ...component, createdAt: new Date(component.createdAt) }));
+}
+
 export function useComponentGenerator(): UseComponentGeneratorReturn {
-  const [components, setComponents] = useState<GeneratedComponent[]>([]);
+  const [components, setComponents] = useState<GeneratedComponent[]>(loadComponents);
+  const [promptHistory, setPromptHistory] = useState<string[]>(() =>
+    loadFromStorage<string[]>(PROMPT_HISTORY_STORAGE_KEY, []).filter((prompt) => typeof prompt === 'string'),
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => saveToStorage(COMPONENTS_STORAGE_KEY, components), [components]);
+  useEffect(() => saveToStorage(PROMPT_HISTORY_STORAGE_KEY, promptHistory), [promptHistory]);
 
   const generate = useCallback(async (prompt: string, apiKey: string | undefined, provider: Provider) => {
     setIsLoading(true);
     setError(null);
+    setPromptHistory((prev) => [prompt, ...prev.filter((item) => item !== prompt)].slice(0, MAX_PROMPT_HISTORY));
 
     try {
       const res = await fetch('/api/generate', {
@@ -56,5 +76,5 @@ export function useComponentGenerator(): UseComponentGeneratorReturn {
     setComponents([]);
   }, []);
 
-  return { components, isLoading, error, generate, removeComponent, clearAll };
+  return { components, promptHistory, isLoading, error, generate, removeComponent, clearAll };
 }

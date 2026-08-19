@@ -3,6 +3,7 @@ import { PromptInput } from './components/PromptInput';
 import { ComponentCard } from './components/ComponentCard';
 import { useComponentGenerator } from './hooks/useComponentGenerator';
 import type { Provider } from './types';
+import { loadFromStorage, saveToStorage } from './utils/storage';
 import './App.css';
 
 const PROVIDER_CONFIG = {
@@ -10,16 +11,25 @@ const PROVIDER_CONFIG = {
   google: { label: 'Google', placeholder: 'AIza...' },
 } as const;
 
+const API_KEY_STORAGE_KEY = 'rcg-api-key';
+const PROVIDER_STORAGE_KEY = 'rcg-provider';
+
 function App() {
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(() => loadFromStorage(API_KEY_STORAGE_KEY, ''));
   const [showKey, setShowKey] = useState(false);
-  const [provider, setProvider] = useState<Provider>('google');
+  const [provider, setProvider] = useState<Provider>(() => {
+    const stored = loadFromStorage<Provider>(PROVIDER_STORAGE_KEY, 'google');
+    return stored === 'anthropic' || stored === 'google' ? stored : 'google';
+  });
   const [envKeys, setEnvKeys] = useState<Record<Provider, boolean>>({
     anthropic: false,
     google: false,
   });
-  const { components, isLoading, error, generate, removeComponent, clearAll } =
+  const { components, promptHistory, isLoading, error, generate, removeComponent, clearAll } =
     useComponentGenerator();
+
+  useEffect(() => saveToStorage(API_KEY_STORAGE_KEY, apiKey), [apiKey]);
+  useEffect(() => saveToStorage(PROVIDER_STORAGE_KEY, provider), [provider]);
 
   useEffect(() => {
     fetch('/api/config')
@@ -68,7 +78,11 @@ function App() {
 
       <main className="workspace">
         <section className="composer-panel" aria-label="컴포넌트 생성">
-          <PromptInput onGenerate={handleGenerate} isLoading={isLoading} />
+          <PromptInput
+            onGenerate={handleGenerate}
+            isLoading={isLoading}
+            promptHistory={promptHistory}
+          />
         </section>
 
         <aside className="settings-panel" aria-label="실행 설정">

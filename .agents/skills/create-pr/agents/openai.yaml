@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create PR"
+  short_description: "Create a templated GitHub pull request"
+  default_prompt: "Use $create-pr to create a GitHub pull request from the current changes."
